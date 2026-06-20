@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+<title>Berlin — moja mapa</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#16181d;
+    --ink-soft:#5a606e;
+    --paper:#f6f5f1;
+    --panel:#ffffff;
+    --line:#e4e2db;
+    --accent:#13322e;        /* deep Berlin spruce */
+    --accent-ink:#0c1f1c;
+    --kebab:#e8773a;
+    --hotel:#2d6cdf;
+    --attraction:#7c4dd6;
+    --food:#d6336c;
+    --other:#15a07a;
+    --shadow:0 1px 2px rgba(20,24,34,.06),0 6px 24px rgba(20,24,34,.08);
+    --radius:14px;
+    --display:"Space Grotesk", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    --body:ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    font-family:var(--body);
+    color:var(--ink);
+    background:var(--paper);
+    -webkit-font-smoothing:antialiased;
+    display:flex;flex-direction:column;height:100dvh;overflow:hidden;
+  }
+
+  /* ---- Header ---- */
+  header{
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:12px 16px;background:var(--accent);color:#eef3f0;
+    border-bottom:1px solid var(--accent-ink);z-index:1200;
+  }
+  .brand{display:flex;flex-direction:column;line-height:1.05;margin-right:auto}
+  .brand b{font-family:var(--display);font-weight:700;font-size:18px;letter-spacing:-.01em}
+  .brand span{font-size:11.5px;color:#9fc2b7;letter-spacing:.02em;margin-top:2px}
+  .tools{display:flex;gap:8px;flex-wrap:wrap}
+  button{font-family:var(--body);cursor:pointer}
+  .btn{
+    border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);
+    color:#eef3f0;padding:7px 11px;border-radius:9px;font-size:13px;font-weight:600;
+    display:inline-flex;align-items:center;gap:6px;transition:background .15s,transform .05s;
+  }
+  .btn:hover{background:rgba(255,255,255,.14)}
+  .btn:active{transform:translateY(1px)}
+  .btn.on{background:#eef3f0;color:var(--accent-ink);border-color:#eef3f0}
+  .btn.ghost{background:transparent}
+
+  /* ---- Search row ---- */
+  .searchbar{
+    display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+    padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);z-index:1100;
+  }
+  .searchbar form{display:flex;gap:8px;flex:1 1 320px;min-width:0}
+  .searchbar input[type=text]{
+    flex:1;min-width:0;padding:9px 12px;border:1px solid var(--line);border-radius:9px;
+    font-size:14px;font-family:var(--body);background:#fbfbf9;color:var(--ink);
+  }
+  .searchbar input[type=text]:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+  select{
+    padding:9px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px;
+    background:#fbfbf9;color:var(--ink);font-family:var(--body);font-weight:600;
+  }
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{background:#1c463f}
+  .hint{font-size:12px;color:var(--ink-soft);flex-basis:100%;margin-top:-2px}
+
+  /* ---- Layout ---- */
+  .stage{flex:1;display:flex;min-height:0}
+  #map{flex:1;min-width:0;background:#dfe6e2}
+  aside{
+    width:340px;flex:0 0 340px;background:var(--panel);border-left:1px solid var(--line);
+    display:flex;flex-direction:column;min-height:0;
+  }
+  .aside-head{
+    padding:12px 14px 8px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px;
+  }
+  .filters{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{
+    border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 10px 5px 8px;
+    font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px;color:var(--ink);
+    user-select:none;transition:opacity .15s,filter .15s;
+  }
+  .chip .dot{width:11px;height:11px;border-radius:50%;flex:none}
+  .chip.off{opacity:.4;filter:grayscale(.5)}
+  .chip .ct{color:var(--ink-soft);font-variant-numeric:tabular-nums}
+  .routebar{display:flex;gap:8px;align-items:center}
+  .routebar .btn.primary{flex:1;justify-content:center}
+  .count-sel{font-size:12px;color:var(--ink-soft)}
+
+  .list{flex:1;overflow:auto;padding:8px 10px 24px}
+  .group-h{
+    font-family:var(--display);font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-soft);margin:14px 6px 6px;display:flex;align-items:center;gap:7px;
+  }
+  .group-h .gd{width:9px;height:9px;border-radius:50%}
+  .card{
+    border:1px solid var(--line);border-radius:12px;padding:10px 10px 10px 12px;margin:7px 2px;
+    background:#fff;box-shadow:var(--shadow);position:relative;border-left-width:4px;
+  }
+  .card .top{display:flex;align-items:flex-start;gap:8px}
+  .card .emoji{font-size:17px;line-height:1.3}
+  .card .nm{font-weight:700;font-size:14px;flex:1;word-break:break-word}
+  .card .sel{margin-top:2px}
+  .card textarea{
+    width:100%;border:1px solid transparent;background:transparent;resize:none;
+    font-family:var(--body);font-size:12.5px;color:var(--ink-soft);padding:4px 2px;margin-top:2px;border-radius:6px;
+  }
+  .card textarea:hover{background:#faf9f6}
+  .card textarea:focus{outline:none;background:#faf9f6;border-color:var(--line);color:var(--ink)}
+  .card .actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .mini{
+    border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:8px;
+    padding:5px 9px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px;
+  }
+  .mini:hover{background:#f3f2ee}
+  .mini.nav{background:var(--accent);border-color:var(--accent);color:#fff}
+  .mini.nav:hover{background:#1c463f}
+  .mini.del{margin-left:auto;color:#b0283f;border-color:#f0d3d8;background:#fff}
+  .mini.del:hover{background:#fdf0f2}
+  .empty{color:var(--ink-soft);font-size:13px;text-align:center;padding:30px 18px;line-height:1.6}
+
+  /* ---- Leaflet marker ---- */
+  .pin{
+    width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);
+    box-shadow:0 2px 6px rgba(0,0,0,.35);border:2px solid #fff;display:flex;align-items:center;justify-content:center;
+  }
+  .pin span{transform:rotate(45deg);font-size:14px;line-height:1}
+  .leaflet-popup-content{margin:10px 12px;font-family:var(--body)}
+  .pop b{font-size:14px}
+  .pop .pa{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .pop .mini{font-size:12px}
+  .searchresult{
+    position:absolute;z-index:1300;background:#fff;border:1px solid var(--line);border-radius:10px;
+    box-shadow:var(--shadow);max-width:380px;width:calc(100% - 32px);left:16px;top:104px;overflow:hidden;display:none;
+  }
+  .searchresult button{
+    display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);
+    background:#fff;padding:10px 12px;font-size:13px;color:var(--ink);
+  }
+  .searchresult button:last-child{border-bottom:0}
+  .searchresult button:hover{background:#f4f3ef}
+  .sr-cat{font-size:11px;color:var(--ink-soft)}
+
+  .metro-legend{
+    position:absolute;left:12px;bottom:14px;z-index:1000;
+    background:rgba(255,255,255,.95);border:1px solid var(--line);border-radius:11px;
+    padding:8px 11px;box-shadow:var(--shadow);font-size:11.5px;max-width:172px;backdrop-filter:blur(4px);
+  }
+  .metro-legend b{
+    display:block;font-family:var(--display);font-size:10.5px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;
+  }
+  .metro-legend .ml{display:inline-flex;align-items:center;gap:5px;margin:2px 8px 2px 0;font-weight:700}
+  .metro-legend .ml i{width:15px;height:4px;border-radius:2px;display:inline-block}
+  @media (max-width:760px){ .metro-legend{bottom:60px} }
+
+  .toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;font-weight:600;
+    opacity:0;transition:.25s;z-index:2000;pointer-events:none;box-shadow:var(--shadow);
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* mobile toggle */
+  .panel-toggle{display:none}
+  @media (max-width:760px){
+    aside{
+      position:absolute;inset:auto 0 0 0;width:100%;flex:none;height:56dvh;
+      border-left:0;border-top:1px solid var(--line);border-radius:18px 18px 0 0;
+      transform:translateY(calc(100% - 46px));transition:transform .28s ease;z-index:1500;box-shadow:0 -8px 30px rgba(0,0,0,.12);
+    }
+    aside.open{transform:translateY(0)}
+    .panel-toggle{
+      display:flex;align-items:center;justify-content:center;gap:8px;height:46px;width:100%;
+      border:0;background:#fff;border-radius:18px 18px 0 0;font-weight:700;font-size:13px;color:var(--ink);
+    }
+    .panel-toggle .grip{position:absolute;top:7px;left:50%;transform:translateX(-50%);width:38px;height:4px;border-radius:2px;background:var(--line)}
+    .stage{position:relative}
+    #map{position:absolute;inset:0}
+    .searchresult{top:auto;bottom:60dvh}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <b>Berlin — moja mapa</b>
+    <span>kebaby Książula · hotele · Twoje miejsca</span>
+  </div>
+  <div class="tools">
+    <button class="btn" id="metroToggle" title="Pokaż/ukryj linie metra (U-Bahn)">🚇 Metro</button>
+    <button class="btn" id="addToggle" title="Kliknij na mapie, by dodać pinezkę">＋ Dodaj klikiem</button>
+    <button class="btn ghost" id="exportBtn">⭳ Eksport</button>
+    <button class="btn ghost" id="importBtn">⭱ Import</button>
+    <button class="btn ghost" id="resetBtn">↺ Reset</button>
+    <input type="file" id="importFile" accept="application/json" hidden />
+  </div>
+</header>
+
+<div class="searchbar">
+  <form id="searchForm" autocomplete="off">
+    <input type="text" id="searchInput" placeholder="Szukaj miejsca w Berlinie (np. Brama Brandenburska)…" />
+    <select id="searchCat" title="Kategoria nowego miejsca">
+      <option value="attraction">📸 Atrakcja</option>
+      <option value="food">🍽️ Jedzenie</option>
+      <option value="kebab">🥙 Kebab</option>
+      <option value="hotel">🏨 Hotel</option>
+      <option value="other">📍 Inne</option>
+    </select>
+    <button class="btn primary" type="submit">Szukaj</button>
+  </form>
+  <span class="hint">Tip: każdy punkt ma przycisk <b>Nawiguj</b> — otwiera trasę prosto w Google Maps. Możesz też kliknąć mapę, żeby wbić własną pinezkę.</span>
+</div>
+
+<div class="stage">
+  <div id="map"></div>
+  <div class="searchresult" id="searchResults"></div>
+  <div class="metro-legend" id="metroLegend" hidden></div>
+  <aside id="panel">
+    <button class="panel-toggle" id="panelToggle"><span class="grip"></span>Lista miejsc</button>
+    <div class="aside-head">
+      <div class="filters" id="filters"></div>
+      <div class="routebar">
+        <button class="btn primary" id="routeBtn">🧭 Trasa z zaznaczonych w Google Maps</button>
+      </div>
+      <div class="count-sel" id="selInfo">Zaznacz miejsca (✓), aby zbudować trasę spacerową.</div>
+    </div>
+    <div class="list" id="list"></div>
+  </aside>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  const CATS = {
+    kebab:      {label:"Kebaby",    color:"#e8773a", emoji:"🥙"},
+    hotel:      {label:"Hotele",    color:"#2d6cdf", emoji:"🏨"},
+    attraction: {label:"Atrakcje",  color:"#7c4dd6", emoji:"📸"},
+    food:       {label:"Jedzenie",  color:"#d6336c", emoji:"🍽️"},
+    other:      {label:"Inne",      color:"#15a07a", emoji:"📍"},
+  };
+  const CAT_ORDER = ["kebab","hotel","attraction","food","other"];
+  const KEY = "berlin-mapa-v1";
+
+  // oficjalne kolory linii U-Bahn (fallback, gdy brak w danych OSM)
+  const UBAHN = {U1:"#7DAD4C",U2:"#DA421E",U3:"#16683D",U4:"#F0D722",U5:"#7E5330",U6:"#8C6DAB",U7:"#009BD5",U8:"#224F86",U9:"#F3791D"};
+  const OVERPASS = ["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter"];
+
+  const DEFAULTS = [
+    {name:"Rüyam Gemüse Kebab", lat:52.484503, lng:13.3523488, cat:"kebab", note:"MUALA — jego „najlepszy na świecie”. Tylko gotówka, kolejki ~30 min."},
+    {name:"Oggi’s Gemüsekebab", lat:52.5294812, lng:13.3687862, cat:"kebab", note:"MUALA — sos miodowo-sezamowy. Gotówka."},
+    {name:"7days finest fresh food", lat:52.4851915, lng:13.3536779, cat:"kebab", note:"Naprzeciw Rüyam. Nachosy + darmowy ryż na mleku."},
+    {name:"Dunya Gemüse Kebap", lat:52.5152605, lng:13.4631673, cat:"kebab", note:"MUALA — Friedrichshain. Warzywa smażone, nie głęboko."},
+    {name:"ZAGROS Veggie Kebabs", lat:52.4994662, lng:13.4284868, cat:"kebab", note:"MUALA — wege, Kreuzberg. Własny chleb z pieca."},
+    {name:"Nefis Gemüse Kebap Kotti", lat:52.5003192, lng:13.4188788, cat:"kebab", note:"Kottbusser Tor. Sezamowa bułka, tanio (~8€), do późna."},
+    {name:"Mustafa’s Gemüse Kebap", lat:52.493485, lng:13.3885619, cat:"kebab", note:"Turystyczny klasyk. Książulo bez zachwytu (4,2★). Mega kolejki."},
+    {name:"H1 · Hotel am Spittelmarkt", lat:52.51003, lng:13.405362, cat:"hotel", note:"Dziś Premier Inn Spittelmarkt. Mitte, bardzo centralnie."},
+    {name:"H2 · Hotel Lützow", lat:52.506084, lng:13.348502, cat:"hotel", note:"Tiergarten, blisko Zoo. Budżetowo, 3,8★ (skargi na ogrzewanie/ściany)."},
+    {name:"H3 · aletto Potsdamer Platz", lat:52.500277, lng:13.376092, cat:"hotel", note:"4,6★ — najwyżej z czwórki. Przy U-Bahn, blisko kebabów z Kreuzbergu."},
+    {name:"H4 · Hotel Columbia (faworyt)", lat:52.485241, lng:13.385079, cat:"hotel", note:"Faworyt + podobno darmowy parking (potwierdź w Booking). 4,4★, self check-in. Spacerem do Mustafy."},
+  ];
+
+  // ---------- storage (Claude artifact window.storage -> localStorage -> memory) ----------
+  const hasWinStore = (typeof window !== "undefined" && window.storage && typeof window.storage.get === "function");
+  let memCache = null;
+  const Store = {
+    async load(){
+      if(hasWinStore){
+        try{ const r = await window.storage.get(KEY); return r && r.value ? JSON.parse(r.value) : null; }
+        catch(e){ return null; }
+      }
+      try{ const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; }
+      catch(e){ return memCache; }
+    },
+    async save(data){
+      const str = JSON.stringify(data);
+      if(hasWinStore){ try{ await window.storage.set(KEY, str); return; }catch(e){} }
+      try{ localStorage.setItem(KEY, str); }catch(e){ memCache = data; }
+    }
+  };
+
+  // ---------- state ----------
+  let places = [];
+  let addMode = false;
+  const markers = new Map();
+  const hidden = new Set();
+  let map, layer;
+  let uLayer = null, uState = "off"; // off | loading | on
+
+  const uid = () => (crypto && crypto.randomUUID ? crypto.randomUUID() : "id"+Date.now()+Math.random().toString(16).slice(2));
+  const $ = (s)=>document.querySelector(s);
+
+  function seedIfEmpty(loaded){
+    if(loaded && Array.isArray(loaded.places) && loaded.places.length){
+      places = loaded.places.map(p=>({id:p.id||uid(), name:p.name, lat:+p.lat, lng:+p.lng, cat:CATS[p.cat]?p.cat:"other", note:p.note||"", sel:false}));
+    } else {
+      places = DEFAULTS.map(p=>({id:uid(), ...p, sel:false}));
+    }
+  }
+
+  async function persist(){ await Store.save({places: places.map(({sel,...rest})=>rest)}); }
+
+  // ---------- map ----------
+  function initMap(){
+    map = L.map("map",{
+      zoomControl:true,
+      zoomSnap:0.25,            // pozwala na ułamkowe poziomy zoomu
+      zoomDelta:0.5,            // przyciski +/- zmieniają zoom delikatniej
+      wheelPxPerZoomLevel:140,  // gładsze przybliżanie kółkiem
+      wheelDebounceTime:30,
+      zoomAnimation:true
+    }).setView([52.5005,13.39],13);
+    map.zoomControl.setPosition("topright");
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+      maxZoom:19, attribution:'&copy; OpenStreetMap'
+    }).addTo(map);
+    layer = L.layerGroup().addTo(map);
+    map.on("click", onMapClick);
+  }
+
+  // ---------- metro (U-Bahn) ----------
+  async function fetchUbahn(){
+    const q = `[out:json][timeout:60];area["name"="Berlin"]["admin_level"="4"]["boundary"="administrative"]->.a;rel(area.a)["route"="subway"];out tags geom;`;
+    let data=null, err=null;
+    for(const ep of OVERPASS){
+      try{
+        const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),35000);
+        const res=await fetch(ep,{method:"POST",body:"data="+encodeURIComponent(q),signal:ctrl.signal});
+        clearTimeout(to);
+        if(!res.ok) throw new Error("http "+res.status);
+        data=await res.json(); break;
+      }catch(e){ err=e; }
+    }
+    if(!data) throw err||new Error("overpass");
+    return data;
+  }
+
+  function buildUbahn(data){
+    uLayer = L.layerGroup();
+    const refs = new Set();
+    (data.elements||[]).forEach(rel=>{
+      if(rel.type!=="relation" || !rel.members) return;
+      const t = rel.tags||{}; const ref=(t.ref||"").trim();
+      if(!/^U\d/.test(ref)) return;
+      const color = t.colour || UBAHN[ref] || "#555";
+      refs.add(ref);
+      rel.members.forEach(m=>{
+        if(m.type==="way" && m.geometry && m.geometry.length>1){
+          L.polyline(m.geometry.map(g=>[g.lat,g.lon]),
+            {color,weight:4.5,opacity:.85,lineCap:"round",lineJoin:"round",interactive:false}).addTo(uLayer);
+        }
+      });
+    });
+    return [...refs].sort();
+  }
+
+  function renderMetroLegend(refs){
+    const box=$("#metroLegend");
+    box.innerHTML = "<b>🚇 U-Bahn</b>" + refs.map(r=>`<span class="ml"><i style="background:${UBAHN[r]||'#555'}"></i>${r}</span>`).join("");
+  }
+
+  async function toggleMetro(){
+    const btn=$("#metroToggle");
+    if(uState==="loading") return;
+    if(uState==="on"){ map.removeLayer(uLayer); $("#metroLegend").hidden=true; btn.classList.remove("on"); uState="off"; return; }
+    if(uLayer){ uLayer.addTo(map); $("#metroLegend").hidden=false; btn.classList.add("on"); uState="on"; return; }
+    uState="loading"; btn.classList.add("on"); btn.textContent="🚇 Ładuję…";
+    try{
+      const data=await fetchUbahn();
+      const refs=buildUbahn(data);
+      if(!uLayer || !uLayer.getLayers().length) throw new Error("empty");
+      uLayer.addTo(map); renderMetroLegend(refs); $("#metroLegend").hidden=false;
+      uState="on"; btn.textContent="🚇 Metro";
+      toast("Linie U-Bahn włączone.");
+    }catch(e){
+      uState="off"; uLayer=null; btn.classList.remove("on"); btn.textContent="🚇 Metro";
+      toast("Nie pobrałem metra w podglądzie — zadziała po pobraniu pliku.");
+    }
+  }
+
+  function pinIcon(cat){
+    const c = CATS[cat]||CATS.other;
+    return L.divIcon({
+      className:"", html:`<div class="pin" style="background:${c.color}"><span>${c.emoji}</span></div>`,
+      iconSize:[30,30], iconAnchor:[15,29], popupAnchor:[0,-28]
+    });
+  }
+
+  function gmapsNav(p){ return `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=walking`; }
+  function gmapsShow(p){ return `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`; }
+
+  function popupHtml(p){
+    const c = CATS[p.cat]||CATS.other;
+    return `<div class="pop"><b>${c.emoji} ${escapeHtml(p.name)}</b>`+
+      (p.note?`<div style="font-size:12px;color:#5a606e;margin-top:3px">${escapeHtml(p.note)}</div>`:"")+
+      `<div class="pa">`+
+      `<a class="mini nav" href="${gmapsNav(p)}" target="_blank" rel="noopener">🧭 Nawiguj</a>`+
+      `<a class="mini" href="${gmapsShow(p)}" target="_blank" rel="noopener">📍 W Google Maps</a>`+
+      `</div></div>`;
+  }
+
+  function renderMarkers(){
+    layer.clearLayers(); markers.clear();
+    places.forEach(p=>{
+      if(hidden.has(p.cat)) return;
+      const m = L.marker([p.lat,p.lng],{icon:pinIcon(p.cat)}).bindPopup(popupHtml(p));
+      m.addTo(layer); markers.set(p.id,m);
+    });
+  }
+
+  // ---------- list ----------
+  function renderFilters(){
+    const wrap = $("#filters"); wrap.innerHTML = "";
+    CAT_ORDER.forEach(cat=>{
+      const c = CATS[cat];
+      const n = places.filter(p=>p.cat===cat).length;
+      const chip = document.createElement("button");
+      chip.className = "chip"+(hidden.has(cat)?" off":"");
+      chip.innerHTML = `<span class="dot" style="background:${c.color}"></span>${c.label} <span class="ct">${n}</span>`;
+      chip.onclick = ()=>{ hidden.has(cat)?hidden.delete(cat):hidden.add(cat); renderFilters(); renderMarkers(); renderList(); };
+      wrap.appendChild(chip);
+    });
+  }
+
+  function renderList(){
+    const list = $("#list"); list.innerHTML = "";
+    const visible = places.filter(p=>!hidden.has(p.cat));
+    if(!visible.length){
+      list.innerHTML = `<div class="empty">Brak widocznych miejsc.<br>Włącz kategorie powyżej albo dodaj nowe przez wyszukiwarkę lub klik na mapie.</div>`;
+      updateSelInfo(); return;
+    }
+    CAT_ORDER.forEach(cat=>{
+      if(hidden.has(cat)) return;
+      const items = places.filter(p=>p.cat===cat);
+      if(!items.length) return;
+      const c = CATS[cat];
+      const h = document.createElement("div");
+      h.className="group-h";
+      h.innerHTML = `<span class="gd" style="background:${c.color}"></span>${c.label} · ${items.length}`;
+      list.appendChild(h);
+      items.forEach(p=>list.appendChild(cardFor(p,c)));
+    });
+    updateSelInfo();
+  }
+
+  function cardFor(p,c){
+    const card = document.createElement("div");
+    card.className="card"; card.style.borderLeftColor=c.color;
+    const top = document.createElement("div"); top.className="top";
+    top.innerHTML =
+      `<input class="sel" type="checkbox" ${p.sel?"checked":""} title="Dodaj do trasy">`+
+      `<span class="emoji">${c.emoji}</span>`+
+      `<span class="nm">${escapeHtml(p.name)}</span>`;
+    top.querySelector(".sel").onchange = (e)=>{ p.sel=e.target.checked; updateSelInfo(); };
+
+    const ta = document.createElement("textarea");
+    ta.rows=1; ta.value=p.note; ta.placeholder="Dodaj notatkę…";
+    autosize(ta);
+    ta.oninput = ()=>autosize(ta);
+    ta.onchange = ()=>{ p.note=ta.value.trim(); persist(); const m=markers.get(p.id); if(m) m.setPopupContent(popupHtml(p)); };
+
+    const act = document.createElement("div"); act.className="actions";
+    const nav = document.createElement("a"); nav.className="mini nav"; nav.href=gmapsNav(p); nav.target="_blank"; nav.rel="noopener"; nav.innerHTML="🧭 Nawiguj";
+    const show = document.createElement("button"); show.className="mini"; show.innerHTML="🔍 Pokaż"; show.onclick=()=>flyTo(p);
+    const del = document.createElement("button"); del.className="mini del"; del.innerHTML="🗑"; del.title="Usuń"; del.onclick=()=>removePlace(p.id);
+    act.append(nav,show,del);
+
+    card.append(top,ta,act);
+    return card;
+  }
+
+  function autosize(ta){ ta.style.height="auto"; ta.style.height=Math.min(ta.scrollHeight,120)+"px"; }
+
+  function updateSelInfo(){
+    const n = places.filter(p=>p.sel).length;
+    $("#selInfo").textContent = n
+      ? `Zaznaczono: ${n}. Kliknij „Trasa…”, by otworzyć przejście pieszo w Google Maps.`
+      : `Zaznacz miejsca (✓), aby zbudować trasę spacerową.`;
+  }
+
+  function flyTo(p){
+    map.flyTo([p.lat,p.lng],16,{duration:.6});
+    const m=markers.get(p.id); if(m) setTimeout(()=>m.openPopup(),350);
+    if(window.matchMedia("(max-width:760px)").matches) $("#panel").classList.remove("open");
+  }
+
+  // ---------- add / remove ----------
+  function addPlace(o, {center=true}={}){
+    const p = {id:uid(), name:o.name||"Nowe miejsce", lat:+o.lat, lng:+o.lng, cat:o.cat||"other", note:o.note||"", sel:false};
+    places.push(p); hidden.delete(p.cat);
+    renderFilters(); renderMarkers(); renderList(); persist();
+    if(center) flyTo(p);
+    toast(`Dodano: ${p.name}`);
+    return p;
+  }
+  function removePlace(id){
+    const p = places.find(x=>x.id===id);
+    places = places.filter(x=>x.id!==id);
+    renderFilters(); renderMarkers(); renderList(); persist();
+    if(p) toast(`Usunięto: ${p.name}`);
+  }
+
+  function onMapClick(e){
+    if(!addMode) return;
+    const cat = $("#searchCat").value;
+    const name = prompt("Nazwa miejsca:");
+    if(name===null) return;
+    addPlace({name:name.trim()||"Nowe miejsce", lat:e.latlng.lat.toFixed(6), lng:e.latlng.lng.toFixed(6), cat}, {center:false});
+  }
+
+  // ---------- search (Nominatim) ----------
+  async function doSearch(q){
+    const box = $("#searchResults");
+    box.style.display="block"; box.innerHTML = `<button disabled>Szukam „${escapeHtml(q)}”…</button>`;
+    try{
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&accept-language=pl&viewbox=13.05,52.70,13.78,52.34&bounded=0&q=`+encodeURIComponent(q+" Berlin");
+      const res = await fetch(url,{headers:{"Accept":"application/json"}});
+      if(!res.ok) throw new Error("net");
+      const data = await res.json();
+      if(!data.length){ box.innerHTML = `<button disabled>Nic nie znaleziono. Spróbuj inaczej albo kliknij mapę.</button>`; return; }
+      box.innerHTML="";
+      data.forEach(r=>{
+        const b=document.createElement("button");
+        const main = r.display_name.split(",")[0];
+        b.innerHTML = `${escapeHtml(main)}<div class="sr-cat">${escapeHtml(r.display_name.split(",").slice(1,4).join(",").trim())}</div>`;
+        b.onclick = ()=>{
+          box.style.display="none"; $("#searchInput").value="";
+          addPlace({name:main, lat:r.lat, lng:r.lon, cat:$("#searchCat").value});
+        };
+        box.appendChild(b);
+      });
+    }catch(err){
+      box.innerHTML = `<button disabled>Wyszukiwarka niedostępna w tym podglądzie. Pobierz plik i otwórz, albo dodaj miejsce klikając mapę.</button>`;
+    }
+  }
+
+  // ---------- route in Google Maps ----------
+  function openRoute(){
+    const sel = places.filter(p=>p.sel);
+    if(sel.length<1){ toast("Najpierw zaznacz ✓ przynajmniej jedno miejsce."); return; }
+    if(sel.length===1){ window.open(gmapsNav(sel[0]),"_blank","noopener"); return; }
+    const pts = sel.map(p=>`${p.lat},${p.lng}`);
+    const dest = pts[pts.length-1];
+    let mids = pts.slice(0,-1);
+    let trimmed=false;
+    if(mids.length>9){ mids = mids.slice(0,9); trimmed=true; }
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${dest}&waypoints=${mids.join("|")}&travelmode=walking`;
+    window.open(url,"_blank","noopener");
+    if(trimmed) toast("Google Maps obsłuży maks. 10 stopów — resztę pominięto.");
+  }
+
+  // ---------- export / import ----------
+  function doExport(){
+    const blob = new Blob([JSON.stringify({app:"berlin-mapa",version:1,places:places.map(({sel,...r})=>r)},null,2)],{type:"application/json"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+    a.download="berlin-mapa.json"; a.click(); URL.revokeObjectURL(a.href);
+    toast("Wyeksportowano plik berlin-mapa.json");
+  }
+  function doImport(file){
+    const fr=new FileReader();
+    fr.onload=()=>{
+      try{
+        const d=JSON.parse(fr.result);
+        const arr = Array.isArray(d)?d:(d.places||[]);
+        if(!arr.length) throw 0;
+        places = arr.map(p=>({id:uid(), name:p.name, lat:+p.lat, lng:+p.lng, cat:CATS[p.cat]?p.cat:"other", note:p.note||"", sel:false}));
+        hidden.clear(); renderFilters(); renderMarkers(); renderList(); persist();
+        if(places.length) map.fitBounds(L.latLngBounds(places.map(p=>[p.lat,p.lng])).pad(.2));
+        toast(`Zaimportowano ${places.length} miejsc.`);
+      }catch(e){ toast("Nie udało się odczytać pliku."); }
+    };
+    fr.readAsText(file);
+  }
+
+  // ---------- misc ----------
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+  let toastT;
+  function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2600); }
+
+  function fitToPlaces(){
+    const vis = places.filter(p=>!hidden.has(p.cat));
+    if(vis.length) map.fitBounds(L.latLngBounds(vis.map(p=>[p.lat,p.lng])).pad(.18));
+  }
+
+  // ---------- wire up ----------
+  function bind(){
+    $("#metroToggle").onclick = toggleMetro;
+    $("#addToggle").onclick = (e)=>{
+      addMode=!addMode; e.currentTarget.classList.toggle("on",addMode);
+      $("#map").style.cursor = addMode?"crosshair":"";
+      toast(addMode?"Tryb dodawania: kliknij punkt na mapie.":"Tryb dodawania wyłączony.");
+    };
+    $("#searchForm").onsubmit = (e)=>{ e.preventDefault(); const q=$("#searchInput").value.trim(); if(q) doSearch(q); };
+    document.addEventListener("click",(e)=>{ const box=$("#searchResults");
+      if(box && !box.contains(e.target) && e.target.id!=="searchInput" && e.target.closest("#searchForm")===null) box.style.display="none"; });
+    $("#routeBtn").onclick = openRoute;
+    $("#exportBtn").onclick = doExport;
+    $("#importBtn").onclick = ()=>$("#importFile").click();
+    $("#importFile").onchange = (e)=>{ if(e.target.files[0]) doImport(e.target.files[0]); e.target.value=""; };
+    $("#resetBtn").onclick = ()=>{ if(confirm("Przywrócić domyślne 11 miejsc (kebaby + hotele)? Twoje dodatki znikną.")){ places=DEFAULTS.map(p=>({id:uid(),...p,sel:false})); hidden.clear(); renderFilters(); renderMarkers(); renderList(); persist(); fitToPlaces(); toast("Przywrócono domyślne miejsca."); } };
+    $("#panelToggle").onclick = ()=>$("#panel").classList.toggle("open");
+  }
+
+  // ---------- boot ----------
+  (async function boot(){
+    initMap(); bind();
+    const loaded = await Store.load();
+    seedIfEmpty(loaded);
+    renderFilters(); renderMarkers(); renderList();
+    fitToPlaces();
+    if(!loaded) persist();
+  })();
+})();
+</script>
+</body>
+</html>
