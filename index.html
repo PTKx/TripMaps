@@ -337,8 +337,31 @@
   }
 
   // ---------- metro (U-Bahn) ----------
+  let uColors = {}; // ref -> kolor linii, ustawiane przy budowie warstwy
+
+  // Buduje warstwę z lokalnego metro.json: {lines:{U1:{c:"#..",w:[[[lat,lng],...],...]}}}
+  function buildUbahnLocal(doc){
+    uLayer = L.layerGroup(); uColors = {};
+    const lines = (doc && doc.lines) || {};
+    const refs = [];
+    Object.keys(lines).sort().forEach(ref=>{
+      if(!/^U\d/.test(ref)) return;
+      const ln = lines[ref]||{};
+      const color = ln.c || UBAHN[ref] || "#555";
+      uColors[ref] = color;
+      (ln.w||[]).forEach(seg=>{
+        if(seg && seg.length>1){
+          L.polyline(seg,{color,weight:4.5,opacity:.85,lineCap:"round",lineJoin:"round",interactive:false}).addTo(uLayer);
+        }
+      });
+      refs.push(ref);
+    });
+    return refs;
+  }
+
+  // Fallback: pobranie na żywo z Overpass (gdy brak/uszkodzony metro.json)
   async function fetchUbahn(){
-    const q = `[out:json][timeout:60];area["name"="Berlin"]["admin_level"="4"]["boundary"="administrative"]->.a;rel(area.a)["route"="subway"];out tags geom;`;
+    const q = `[out:json][timeout:60];area["name"="Berlin"]["admin_level"="4"]["boundary"="administrative"]->.a;rel(area.a)["route"="subway"];out geom;`;
     let data=null, err=null;
     for(const ep of OVERPASS){
       try{
@@ -354,13 +377,14 @@
   }
 
   function buildUbahn(data){
-    uLayer = L.layerGroup();
+    uLayer = L.layerGroup(); uColors = {};
     const refs = new Set();
     (data.elements||[]).forEach(rel=>{
       if(rel.type!=="relation" || !rel.members) return;
       const t = rel.tags||{}; const ref=(t.ref||"").trim();
       if(!/^U\d/.test(ref)) return;
       const color = t.colour || UBAHN[ref] || "#555";
+      uColors[ref] = color;
       refs.add(ref);
       rel.members.forEach(m=>{
         if(m.type==="way" && m.geometry && m.geometry.length>1){
@@ -374,7 +398,7 @@
 
   function renderMetroLegend(refs){
     const box=$("#metroLegend");
-    box.innerHTML = "<b>🚇 U-Bahn</b>" + refs.map(r=>`<span class="ml"><i style="background:${UBAHN[r]||'#555'}"></i>${r}</span>`).join("");
+    box.innerHTML = "<b>🚇 U-Bahn</b>" + refs.map(r=>`<span class="ml"><i style="background:${uColors[r]||UBAHN[r]||'#555'}"></i>${r}</span>`).join("");
   }
 
   async function toggleMetro(){
@@ -384,15 +408,23 @@
     if(uLayer){ uLayer.addTo(map); $("#metroLegend").hidden=false; btn.classList.add("on"); uState="on"; return; }
     uState="loading"; btn.classList.add("on"); btn.textContent="🚇 Ładuję…";
     try{
-      const data=await fetchUbahn();
-      const refs=buildUbahn(data);
+      let refs=null;
+      // 1) lokalny metro.json — szybki i niezawodny
+      try{
+        const res=await fetch("metro.json",{cache:"force-cache"});
+        if(res.ok){ refs=buildUbahnLocal(await res.json()); }
+      }catch(e){ /* spróbuj Overpass poniżej */ }
+      // 2) fallback: pobierz na żywo z Overpass
+      if(!uLayer || !uLayer.getLayers().length){
+        refs=buildUbahn(await fetchUbahn());
+      }
       if(!uLayer || !uLayer.getLayers().length) throw new Error("empty");
       uLayer.addTo(map); renderMetroLegend(refs); $("#metroLegend").hidden=false;
       uState="on"; btn.textContent="🚇 Metro";
       toast("Linie U-Bahn włączone.");
     }catch(e){
       uState="off"; uLayer=null; btn.classList.remove("on"); btn.textContent="🚇 Metro";
-      toast("Nie pobrałem metra w podglądzie — zadziała po pobraniu pliku.");
+      toast("Nie udało się załadować linii metra. Spróbuj ponownie za chwilę.");
     }
   }
 
