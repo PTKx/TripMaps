@@ -114,12 +114,16 @@
   .card .emoji{font-size:17px;line-height:1.3}
   .card .nm{font-weight:700;font-size:14px;flex:1;word-break:break-word}
   .card .sel{margin-top:2px}
-  .card textarea{
-    width:100%;border:1px solid transparent;background:transparent;resize:none;
-    font-family:var(--body);font-size:12.5px;color:var(--ink-soft);padding:4px 2px;margin-top:2px;border-radius:6px;
+  .card .note-text{
+    font-size:12.5px;color:var(--ink-soft);line-height:1.45;margin-top:5px;padding:0 2px;
+    white-space:pre-wrap;word-break:break-word;
   }
-  .card textarea:hover{background:#faf9f6}
-  .card textarea:focus{outline:none;background:#faf9f6;border-color:var(--line);color:var(--ink)}
+  .card .note-text.empty{display:none}
+  .card textarea{
+    width:100%;border:1px solid var(--line);background:#fbfbf9;resize:vertical;min-height:48px;
+    font-family:var(--body);font-size:12.5px;color:var(--ink);padding:6px 8px;margin-top:6px;border-radius:8px;
+  }
+  .card textarea:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
   .card .actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
   .mini{
     border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:8px;
@@ -140,6 +144,7 @@
   .pin span{transform:rotate(45deg);font-size:14px;line-height:1}
   .leaflet-popup-content{margin:10px 12px;font-family:var(--body)}
   .pop b{font-size:14px}
+  .pop .popimg{display:block;width:100%;max-width:260px;height:auto;border-radius:9px;margin-top:8px;border:1px solid var(--line);background:#eee}
   .pop .pa{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
   .pop .mini{font-size:12px}
   .searchresult{
@@ -266,14 +271,14 @@
 
   // „MUST SEE” dla pierwszego razu w Berlinie — atrakcje powtarzające się w rankingach
   const MUST_SEE = [
-    {name:"Brama Brandenburska", lat:52.51627, lng:13.377703, cat:"attraction", note:"Symbol Berlina i zjednoczenia Niemiec. Najpiękniejsza o świcie lub wieczorem (podświetlona). Pariser Platz."},
-    {name:"Reichstag (Bundestag)", lat:52.518654, lng:13.376102, cat:"attraction", note:"Szklana kopuła z panoramą miasta — wstęp DARMOWY, ale wymaga wcześniejszej rezerwacji online."},
-    {name:"Pomnik Pomordowanych Żydów Europy", lat:52.513873, lng:13.378735, cat:"attraction", note:"2711 betonowych stel tuż obok Bramy Brandenburskiej. Pod spodem darmowe muzeum (Ort der Information)."},
-    {name:"Wyspa Muzeów (Museumsinsel)", lat:52.520934, lng:13.39563, cat:"attraction", note:"5 muzeów, UNESCO. Perła: Pergamonmuseum (część w remoncie — sprawdź co otwarte). Bilety online."},
-    {name:"Katedra Berlińska (Berliner Dom)", lat:52.519082, lng:13.401094, cat:"attraction", note:"Największy kościół w Berlinie. Wejście na kopułę (267 schodów) po panoramę. Na Wyspie Muzeów."},
-    {name:"Wieża telewizyjna (Fernsehturm)", lat:52.520828, lng:13.409421, cat:"attraction", note:"368 m — najwyższy budynek w Niemczech. Taras widokowy + obrotowa restauracja. Bilety czasowe online taniej."},
-    {name:"East Side Gallery", lat:52.504454, lng:13.440839, cat:"attraction", note:"Najdłuższy zachowany fragment Muru Berlińskiego (1,3 km) z muralami. Słynny „pocałunek”. Plener, wstęp wolny."},
-    {name:"Checkpoint Charlie", lat:52.507432, lng:13.390381, cat:"attraction", note:"Najsłynniejsze przejście graniczne zimnej wojny. Dziś turystycznie — obok dobre Muzeum Muru."},
+    {name:"Brama Brandenburska", lat:52.51627, lng:13.377703, cat:"attraction", img:"img/brandenburger-tor.jpg", note:"Symbol Berlina i zjednoczenia Niemiec. Najpiękniejsza o świcie lub wieczorem (podświetlona). Pariser Platz."},
+    {name:"Reichstag (Bundestag)", lat:52.518654, lng:13.376102, cat:"attraction", img:"img/reichstag.jpg", note:"Szklana kopuła z panoramą miasta — wstęp DARMOWY, ale wymaga wcześniejszej rezerwacji online."},
+    {name:"Pomnik Pomordowanych Żydów Europy", lat:52.513873, lng:13.378735, cat:"attraction", img:"img/holocaust-memorial.jpg", note:"2711 betonowych stel tuż obok Bramy Brandenburskiej. Pod spodem darmowe muzeum (Ort der Information)."},
+    {name:"Wyspa Muzeów (Museumsinsel)", lat:52.520934, lng:13.39563, cat:"attraction", img:"img/museumsinsel.jpg", note:"5 muzeów, UNESCO. Perła: Pergamonmuseum (część w remoncie — sprawdź co otwarte). Bilety online."},
+    {name:"Katedra Berlińska (Berliner Dom)", lat:52.519082, lng:13.401094, cat:"attraction", img:"img/berliner-dom.jpg", note:"Największy kościół w Berlinie. Wejście na kopułę (267 schodów) po panoramę. Na Wyspie Muzeów."},
+    {name:"Wieża telewizyjna (Fernsehturm)", lat:52.520828, lng:13.409421, cat:"attraction", img:"img/fernsehturm.jpg", note:"368 m — najwyższy budynek w Niemczech. Taras widokowy + obrotowa restauracja. Bilety czasowe online taniej."},
+    {name:"East Side Gallery", lat:52.504454, lng:13.440839, cat:"attraction", img:"img/east-side-gallery.jpg", note:"Najdłuższy zachowany fragment Muru Berlińskiego (1,3 km) z muralami. Słynny „pocałunek”. Plener, wstęp wolny."},
+    {name:"Checkpoint Charlie", lat:52.507432, lng:13.390381, cat:"attraction", img:"img/checkpoint-charlie.jpg", note:"Najsłynniejsze przejście graniczne zimnej wojny. Dziś turystycznie — obok dobre Muzeum Muru."},
   ];
 
   const DEFAULTS = [
@@ -324,7 +329,7 @@
 
   function seedIfEmpty(loaded){
     if(loaded && Array.isArray(loaded.places) && loaded.places.length){
-      places = loaded.places.map(p=>({id:p.id||uid(), name:p.name, lat:+p.lat, lng:+p.lng, cat:CATS[p.cat]?p.cat:"other", note:p.note||"", sel:false}));
+      places = loaded.places.map(p=>({id:p.id||uid(), name:p.name, lat:+p.lat, lng:+p.lng, cat:CATS[p.cat]?p.cat:"other", note:p.note||"", img:p.img||"", sel:false}));
     } else {
       places = DEFAULTS.map(p=>({id:uid(), ...p, sel:false}));
     }
@@ -338,6 +343,15 @@
     const names = new Set(places.map(p=>p.name));
     MUST_SEE.forEach(m=>{ if(!names.has(m.name)) places.push({id:uid(), ...m, sel:false}); });
     seeds.add("mustsee-v1");
+    return true;
+  }
+
+  // Dosypuje zdjęcia istniejącym atrakcjom MUST_SEE (po nazwie), gdy ich jeszcze nie mają — raz.
+  function patchMustSeeImages(){
+    if(seeds.has("mustsee-img-v1")) return false;
+    const byName = new Map(MUST_SEE.map(m=>[m.name,m]));
+    places.forEach(p=>{ const m=byName.get(p.name); if(m && m.img && !p.img) p.img=m.img; });
+    seeds.add("mustsee-img-v1");
     return true;
   }
 
@@ -466,6 +480,7 @@
     const c = CATS[p.cat]||CATS.other;
     return `<div class="pop"><b>${c.emoji} ${escapeHtml(p.name)}</b>`+
       (p.note?`<div style="font-size:12px;color:#5a606e;margin-top:3px">${escapeHtml(p.note)}</div>`:"")+
+      (p.img?`<img class="popimg" src="${escapeHtml(p.img)}" alt="${escapeHtml(p.name)}" loading="lazy" onerror="this.remove()">`:"")+
       `<div class="pa">`+
       `<a class="mini nav" href="${gmapsNav(p)}" target="_blank" rel="noopener">🧭 Nawiguj</a>`+
       `<a class="mini" href="${gmapsShow(p)}" target="_blank" rel="noopener">📍 W Google Maps</a>`+
@@ -526,19 +541,38 @@
       `<span class="nm">${escapeHtml(p.name)}</span>`;
     top.querySelector(".sel").onchange = (e)=>{ p.sel=e.target.checked; updateSelInfo(); };
 
+    // notatka: podgląd jako tekst; edytor (textarea) pojawia się dopiero po kliknięciu „Edytuj”
+    const noteText = document.createElement("div"); noteText.className="note-text";
     const ta = document.createElement("textarea");
-    ta.rows=1; ta.value=p.note; ta.placeholder="Dodaj notatkę…";
-    autosize(ta);
+    ta.rows=2; ta.value=p.note; ta.placeholder="Dodaj notatkę…"; ta.hidden=true;
+    const showPreview = ()=>{
+      noteText.textContent = p.note || "";
+      noteText.classList.toggle("empty", !p.note);
+    };
+    showPreview();
     ta.oninput = ()=>autosize(ta);
-    ta.onchange = ()=>{ p.note=ta.value.trim(); persist(); const m=markers.get(p.id); if(m) m.setPopupContent(popupHtml(p)); };
+    const startEdit = ()=>{
+      noteText.hidden=true; editBtn.hidden=true;
+      ta.hidden=false; autosize(ta); ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    };
+    const endEdit = ()=>{
+      const v = ta.value.trim();
+      if(v!==p.note){ p.note=v; persist(); const m=markers.get(p.id); if(m) m.setPopupContent(popupHtml(p)); }
+      showPreview(); editBtn.innerHTML = p.note?"✏️ Notatka":"✏️ Dodaj notatkę";
+      ta.hidden=true; noteText.hidden=false; editBtn.hidden=false;
+    };
+    ta.onblur = endEdit;
+    ta.onkeydown = (e)=>{ if(e.key==="Escape"){ ta.value=p.note; ta.blur(); } };
 
     const act = document.createElement("div"); act.className="actions";
     const nav = document.createElement("a"); nav.className="mini nav"; nav.href=gmapsNav(p); nav.target="_blank"; nav.rel="noopener"; nav.innerHTML="🧭 Nawiguj";
     const show = document.createElement("button"); show.className="mini"; show.innerHTML="🔍 Pokaż"; show.onclick=()=>flyTo(p);
+    const editBtn = document.createElement("button"); editBtn.className="mini"; editBtn.innerHTML=p.note?"✏️ Notatka":"✏️ Dodaj notatkę"; editBtn.title="Edytuj notatkę"; editBtn.onclick=startEdit;
     const del = document.createElement("button"); del.className="mini del"; del.innerHTML="🗑"; del.title="Usuń"; del.onclick=()=>removePlace(p.id);
-    act.append(nav,show,del);
+    act.append(nav,show,editBtn,del);
 
-    card.append(top,ta,act);
+    card.append(top,noteText,ta,act);
     return card;
   }
 
@@ -636,7 +670,7 @@
         const d=JSON.parse(fr.result);
         const arr = Array.isArray(d)?d:(d.places||[]);
         if(!arr.length) throw 0;
-        places = arr.map(p=>({id:uid(), name:p.name, lat:+p.lat, lng:+p.lng, cat:CATS[p.cat]?p.cat:"other", note:p.note||"", sel:false}));
+        places = arr.map(p=>({id:uid(), name:p.name, lat:+p.lat, lng:+p.lng, cat:CATS[p.cat]?p.cat:"other", note:p.note||"", img:p.img||"", sel:false}));
         hidden.clear(); renderFilters(); renderMarkers(); renderList(); persist();
         if(places.length) map.fitBounds(L.latLngBounds(places.map(p=>[p.lat,p.lng])).pad(.2));
         toast(`Zaimportowano ${places.length} miejsc.`);
@@ -670,7 +704,7 @@
     $("#exportBtn").onclick = doExport;
     $("#importBtn").onclick = ()=>$("#importFile").click();
     $("#importFile").onchange = (e)=>{ if(e.target.files[0]) doImport(e.target.files[0]); e.target.value=""; };
-    $("#resetBtn").onclick = ()=>{ if(confirm(`Przywrócić domyślne miejsca (${DEFAULTS.length}: kebaby + hotele + atrakcje MUST SEE)? Twoje dodatki znikną.`)){ places=DEFAULTS.map(p=>({id:uid(),...p,sel:false})); hidden.clear(); seeds.add("mustsee-v1"); renderFilters(); renderMarkers(); renderList(); persist(); fitToPlaces(); toast("Przywrócono domyślne miejsca."); } };
+    $("#resetBtn").onclick = ()=>{ if(confirm(`Przywrócić domyślne miejsca (${DEFAULTS.length}: kebaby + hotele + atrakcje MUST SEE)? Twoje dodatki znikną.`)){ places=DEFAULTS.map(p=>({id:uid(),...p,sel:false})); hidden.clear(); seeds.add("mustsee-v1"); seeds.add("mustsee-img-v1"); renderFilters(); renderMarkers(); renderList(); persist(); fitToPlaces(); toast("Przywrócono domyślne miejsca."); } };
     $("#panelToggle").onclick = ()=>$("#panel").classList.toggle("open");
   }
 
@@ -681,9 +715,10 @@
     seedIfEmpty(loaded);
     if(loaded && Array.isArray(loaded.seeds)) loaded.seeds.forEach(s=>seeds.add(s));
     const seeded = applySeedMustSee();
+    const patched = patchMustSeeImages();
     renderFilters(); renderMarkers(); renderList();
     fitToPlaces();
-    if(!loaded || seeded) persist();
+    if(!loaded || seeded || patched) persist();
   })();
 })();
 </script>
