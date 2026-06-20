@@ -109,7 +109,11 @@
   .card{
     border:1px solid var(--line);border-radius:12px;padding:10px 10px 10px 12px;margin:7px 2px;
     background:#fff;box-shadow:var(--shadow);position:relative;border-left-width:4px;
+    cursor:pointer;user-select:none;transition:box-shadow .12s,background .12s;
   }
+  .card:hover{background:#fcfbf8}
+  .card.sel{box-shadow:0 0 0 2px #ffcb2e,var(--shadow);background:#fffdf3}
+  .card textarea{user-select:text}
   .card .top{display:flex;align-items:flex-start;gap:8px}
   .card .emoji{font-size:17px;line-height:1.3}
   .card .nm{font-weight:700;font-size:14px;flex:1;word-break:break-word}
@@ -537,13 +541,17 @@
 
   function cardFor(p,c){
     const card = document.createElement("div");
-    card.className="card"; card.style.borderLeftColor=c.color;
+    card.className="card"+(p.sel?" sel":""); card.style.borderLeftColor=c.color;
+    // klik w dowolne miejsce kafelka = zaznacz/odznacz (poza przyciskami/polami)
+    card.onclick = (e)=>{ if(e.target.closest("button, a, input, textarea, label")) return; toggleSelect(p); };
     const top = document.createElement("div"); top.className="top";
     top.innerHTML =
       `<input class="sel" type="checkbox" data-id="${p.id}" ${p.sel?"checked":""} title="Dodaj do trasy">`+
       `<span class="emoji">${c.emoji}</span>`+
       `<span class="nm">${escapeHtml(p.name)}</span>`;
     top.querySelector(".sel").onchange = (e)=>{ setSelected(p, e.target.checked); };
+    const del = document.createElement("button"); del.className="mini del"; del.innerHTML="🗑"; del.title="Usuń miejsce"; del.onclick=()=>removePlace(p.id);
+    top.appendChild(del);
 
     // notatka: podgląd jako tekst; edytor (textarea) pojawia się dopiero po kliknięciu „Edytuj”
     const noteText = document.createElement("div"); noteText.className="note-text";
@@ -573,8 +581,7 @@
     const nav = document.createElement("a"); nav.className="mini nav"; nav.href=gmapsNav(p); nav.target="_blank"; nav.rel="noopener"; nav.innerHTML="🧭 Nawiguj";
     const show = document.createElement("button"); show.className="mini"; show.innerHTML="🔍 Pokaż"; show.onclick=()=>flyTo(p);
     const editBtn = document.createElement("button"); editBtn.className="mini"; editBtn.innerHTML=p.note?"✏️ Notatka":"✏️ Dodaj notatkę"; editBtn.title="Edytuj notatkę"; editBtn.onclick=startEdit;
-    const del = document.createElement("button"); del.className="mini del"; del.innerHTML="🗑"; del.title="Usuń"; del.onclick=()=>removePlace(p.id);
-    act.append(nav,show,editBtn,del);
+    act.append(nav,show,editBtn);
 
     card.append(top,noteText,ta,act);
     return card;
@@ -594,13 +601,13 @@
     p.sel = val;
     const m = markers.get(p.id);
     if(m) m.setIcon(pinIcon(p));
+    const cb = $(`.sel[data-id="${p.id}"]`);
+    if(cb){ cb.checked = p.sel; const card=cb.closest(".card"); if(card) card.classList.toggle("sel", p.sel); }
     updateSelInfo();
   }
-  // przełącza zaznaczenie (z mapy) i synchronizuje checkbox na liście
+  // przełącza zaznaczenie (klik w kafelek / 2× klik pinezki)
   function toggleSelect(p){
     setSelected(p, !p.sel);
-    const cb = $(`.sel[data-id="${p.id}"]`);
-    if(cb) cb.checked = p.sel; else renderList();
     toast(p.sel ? `Dodano do trasy: ${p.name}` : `Usunięto z trasy: ${p.name}`);
   }
 
