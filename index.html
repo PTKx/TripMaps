@@ -146,7 +146,12 @@
     box-shadow:0 2px 6px rgba(0,0,0,.35);border:2px solid #fff;display:flex;align-items:center;justify-content:center;
   }
   .pin span{transform:rotate(45deg);font-size:14px;line-height:1}
-  .pin.sel{box-shadow:0 0 0 3px #ffcb2e,0 2px 8px rgba(0,0,0,.45);border-color:#fff}
+  .pin.sel{
+    transform:rotate(-45deg) scale(1.34);
+    border:3px solid #fff;
+    box-shadow:0 0 0 3px #16181d,0 0 0 7px #ffcb2e,0 4px 13px rgba(0,0,0,.55);
+  }
+  .pin.sel span{font-size:15px;font-weight:700}
   .leaflet-popup-content{margin:10px 12px;font-family:var(--body)}
   .pop b{font-size:14px}
   .pop .popimg{display:block;width:100%;max-width:260px;height:auto;border-radius:9px;margin-top:8px;border:1px solid var(--line);background:#eee}
@@ -498,7 +503,7 @@
     layer.clearLayers(); markers.clear();
     places.forEach(p=>{
       if(hidden.has(p.cat)) return;
-      const m = L.marker([p.lat,p.lng],{icon:pinIcon(p)}).bindPopup(popupHtml(p));
+      const m = L.marker([p.lat,p.lng],{icon:pinIcon(p),zIndexOffset:p.sel?1000:0}).bindPopup(popupHtml(p));
       m.on("dblclick",()=>toggleSelect(p));   // 2× klik = dodaj/usuń z trasy
       m.addTo(layer); markers.set(p.id,m);
     });
@@ -600,7 +605,7 @@
   function setSelected(p, val){
     p.sel = val;
     const m = markers.get(p.id);
-    if(m) m.setIcon(pinIcon(p));
+    if(m){ m.setIcon(pinIcon(p)); m.setZIndexOffset(p.sel?1000:0); }
     const cb = $(`.sel[data-id="${p.id}"]`);
     if(cb){ cb.checked = p.sel; const card=cb.closest(".card"); if(card) card.classList.toggle("sel", p.sel); }
     updateSelInfo();
