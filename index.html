@@ -142,6 +142,7 @@
     box-shadow:0 2px 6px rgba(0,0,0,.35);border:2px solid #fff;display:flex;align-items:center;justify-content:center;
   }
   .pin span{transform:rotate(45deg);font-size:14px;line-height:1}
+  .pin.sel{box-shadow:0 0 0 3px #ffcb2e,0 2px 8px rgba(0,0,0,.45);border-color:#fff}
   .leaflet-popup-content{margin:10px 12px;font-family:var(--body)}
   .pop b{font-size:14px}
   .pop .popimg{display:block;width:100%;max-width:260px;height:auto;border-radius:9px;margin-top:8px;border:1px solid var(--line);background:#eee}
@@ -228,7 +229,7 @@
     </select>
     <button class="btn primary" type="submit">Szukaj</button>
   </form>
-  <span class="hint">Tip: każdy punkt ma przycisk <b>Nawiguj</b> — otwiera trasę prosto w Google Maps. Możesz też kliknąć mapę, żeby wbić własną pinezkę.</span>
+  <span class="hint">Tip: <b>klik</b> pinezki = szczegóły, <b>2× klik</b> = dodaj do trasy. Zaznacz kilka i kliknij „Optymalna trasa”, by zwiedzać po kolei. Klik mapy wbija własną pinezkę.</span>
 </div>
 
 <div class="stage">
@@ -240,9 +241,9 @@
     <div class="aside-head">
       <div class="filters" id="filters"></div>
       <div class="routebar">
-        <button class="btn primary" id="routeBtn">🧭 Trasa z zaznaczonych w Google Maps</button>
+        <button class="btn primary" id="routeBtn">🧭 Optymalna trasa z zaznaczonych</button>
       </div>
-      <div class="count-sel" id="selInfo">Zaznacz miejsca (✓), aby zbudować trasę spacerową.</div>
+      <div class="count-sel" id="selInfo">Zaznacz miejsca (✓ lub 2× klik pinezki), aby zbudować optymalną trasę spacerową.</div>
     </div>
     <div class="list" id="list"></div>
   </aside>
@@ -366,6 +367,7 @@
       zoomAnimation:true
     }).setView([52.5005,13.39],13);
     map.zoomControl.setPosition("topright");
+    map.doubleClickZoom.disable();   // dwuklik rezerwujemy na zaznaczanie pinezek
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
       maxZoom:19, attribution:'&copy; OpenStreetMap'
     }).addTo(map);
@@ -466,10 +468,10 @@
     }
   }
 
-  function pinIcon(cat){
-    const c = CATS[cat]||CATS.other;
+  function pinIcon(p){
+    const c = CATS[p.cat]||CATS.other;
     return L.divIcon({
-      className:"", html:`<div class="pin" style="background:${c.color}"><span>${c.emoji}</span></div>`,
+      className:"", html:`<div class="pin${p.sel?" sel":""}" style="background:${c.color}"><span>${c.emoji}</span></div>`,
       iconSize:[30,30], iconAnchor:[15,29], popupAnchor:[0,-28]
     });
   }
@@ -492,7 +494,8 @@
     layer.clearLayers(); markers.clear();
     places.forEach(p=>{
       if(hidden.has(p.cat)) return;
-      const m = L.marker([p.lat,p.lng],{icon:pinIcon(p.cat)}).bindPopup(popupHtml(p));
+      const m = L.marker([p.lat,p.lng],{icon:pinIcon(p)}).bindPopup(popupHtml(p));
+      m.on("dblclick",()=>toggleSelect(p));   // 2× klik = dodaj/usuń z trasy
       m.addTo(layer); markers.set(p.id,m);
     });
   }
@@ -537,10 +540,10 @@
     card.className="card"; card.style.borderLeftColor=c.color;
     const top = document.createElement("div"); top.className="top";
     top.innerHTML =
-      `<input class="sel" type="checkbox" ${p.sel?"checked":""} title="Dodaj do trasy">`+
+      `<input class="sel" type="checkbox" data-id="${p.id}" ${p.sel?"checked":""} title="Dodaj do trasy">`+
       `<span class="emoji">${c.emoji}</span>`+
       `<span class="nm">${escapeHtml(p.name)}</span>`;
-    top.querySelector(".sel").onchange = (e)=>{ p.sel=e.target.checked; updateSelInfo(); };
+    top.querySelector(".sel").onchange = (e)=>{ setSelected(p, e.target.checked); };
 
     // notatka: podgląd jako tekst; edytor (textarea) pojawia się dopiero po kliknięciu „Edytuj”
     const noteText = document.createElement("div"); noteText.className="note-text";
@@ -582,8 +585,23 @@
   function updateSelInfo(){
     const n = places.filter(p=>p.sel).length;
     $("#selInfo").textContent = n
-      ? `Zaznaczono: ${n}. Kliknij „Trasa…”, by otworzyć przejście pieszo w Google Maps.`
-      : `Zaznacz miejsca (✓), aby zbudować trasę spacerową.`;
+      ? `Zaznaczono: ${n}. Kliknij „Optymalna trasa”, by otworzyć przejście pieszo w Google Maps.`
+      : `Zaznacz miejsca (✓ lub 2× klik pinezki), aby zbudować optymalną trasę spacerową.`;
+  }
+
+  // ustawia zaznaczenie miejsca i odświeża pinezkę + licznik
+  function setSelected(p, val){
+    p.sel = val;
+    const m = markers.get(p.id);
+    if(m) m.setIcon(pinIcon(p));
+    updateSelInfo();
+  }
+  // przełącza zaznaczenie (z mapy) i synchronizuje checkbox na liście
+  function toggleSelect(p){
+    setSelected(p, !p.sel);
+    const cb = $(`.sel[data-id="${p.id}"]`);
+    if(cb) cb.checked = p.sel; else renderList();
+    toast(p.sel ? `Dodano do trasy: ${p.name}` : `Usunięto z trasy: ${p.name}`);
   }
 
   function flyTo(p){
@@ -643,18 +661,55 @@
   }
 
   // ---------- route in Google Maps ----------
+  // odległość po wielkim kole (metry) — wystarczająca jako koszt do ustalenia kolejności
+  function haversine(a,b){
+    const R=6371000, toRad=x=>x*Math.PI/180;
+    const dLat=toRad(b.lat-a.lat), dLng=toRad(b.lng-a.lng);
+    const la1=toRad(a.lat), la2=toRad(b.lat);
+    const h=Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)**2;
+    return 2*R*Math.asin(Math.sqrt(h));
+  }
+  // najlepsza kolejność zwiedzania (otwarta ścieżka): nearest-neighbour + 2-opt
+  function optimizeOrder(pts){
+    const n=pts.length;
+    if(n<=2) return pts.slice();
+    const D=pts.map(a=>pts.map(b=>haversine(a,b)));
+    const len=ord=>{ let s=0; for(let i=0;i<ord.length-1;i++) s+=D[ord[i]][ord[i+1]]; return s; };
+    let best=null, bestLen=Infinity;
+    for(let s=0;s<n;s++){                       // NN z każdego możliwego startu
+      const vis=new Array(n).fill(false), ord=[s]; vis[s]=true;
+      for(let k=1;k<n;k++){
+        let last=ord[ord.length-1], nx=-1, nd=Infinity;
+        for(let j=0;j<n;j++) if(!vis[j] && D[last][j]<nd){ nd=D[last][j]; nx=j; }
+        ord.push(nx); vis[nx]=true;
+      }
+      const l=len(ord); if(l<bestLen){ bestLen=l; best=ord; }
+    }
+    let improved=true;                          // 2-opt na otwartej ścieżce
+    while(improved){
+      improved=false;
+      for(let i=0;i<n-1;i++) for(let k=i+1;k<n;k++){
+        const ord=best.slice(0,i).concat(best.slice(i,k+1).reverse(), best.slice(k+1));
+        const l=len(ord); if(l<bestLen-1e-9){ best=ord; bestLen=l; improved=true; }
+      }
+    }
+    return best.map(i=>pts[i]);
+  }
   function openRoute(){
-    const sel = places.filter(p=>p.sel);
-    if(sel.length<1){ toast("Najpierw zaznacz ✓ przynajmniej jedno miejsce."); return; }
+    let sel = places.filter(p=>p.sel);
+    if(sel.length<1){ toast("Najpierw zaznacz miejsca (2× klik pinezki lub ✓ na liście)."); return; }
     if(sel.length===1){ window.open(gmapsNav(sel[0]),"_blank","noopener"); return; }
-    const pts = sel.map(p=>`${p.lat},${p.lng}`);
-    const dest = pts[pts.length-1];
-    let mids = pts.slice(0,-1);
     let trimmed=false;
-    if(mids.length>9){ mids = mids.slice(0,9); trimmed=true; }
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${dest}&waypoints=${mids.join("|")}&travelmode=walking`;
+    if(sel.length>10){ sel=sel.slice(0,10); trimmed=true; }   // Google: maks. ~10 stopów
+    const ordered = optimizeOrder(sel);
+    const pts = ordered.map(p=>`${p.lat},${p.lng}`);
+    const origin = pts[0], dest = pts[pts.length-1], mids = pts.slice(1,-1);
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}`+
+      (mids.length?`&waypoints=${mids.join("|")}`:"")+`&travelmode=walking`;
     window.open(url,"_blank","noopener");
-    if(trimmed) toast("Google Maps obsłuży maks. 10 stopów — resztę pominięto.");
+    toast(trimmed
+      ? "Optymalna trasa gotowa (limit 10 stopów — resztę pominięto)."
+      : "Otwieram optymalną trasę spacerową w Google Maps.");
   }
 
   // ---------- export / import ----------
