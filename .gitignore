@@ -1,0 +1,7 @@
+# śmieci systemowe
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# lokalny eksport miejsc — prywatny, nie trafia do repo
+berlin-mapa.json

@@ -2,8 +2,17 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover" />
 <title>Berlin — moja mapa</title>
+<meta name="description" content="Prywatna mapa wycieczki do Berlina: atrakcje must-see, kebaby, hotele, linie U-Bahn i planowanie trasy spacerowej." />
+<meta name="theme-color" content="#13322e" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Berlin" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="favicon.svg" />
+<link rel="manifest" href="manifest.webmanifest" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -155,6 +164,8 @@
   .leaflet-popup-content{margin:10px 12px;font-family:var(--body)}
   .pop b{font-size:14px}
   .pop .popimg{display:block;width:100%;max-width:260px;height:auto;border-radius:9px;margin-top:8px;border:1px solid var(--line);background:#eee}
+  .pop .cred{font-size:10.5px;color:var(--ink-soft);margin-top:4px;line-height:1.35}
+  .pop .cred a{color:var(--ink-soft)}
   .pop .pa{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
   .pop .mini{font-size:12px}
   .searchresult{
@@ -192,6 +203,17 @@
   /* mobile toggle */
   .panel-toggle{display:none}
   @media (max-width:760px){
+    /* na telefonie chrom ma zjadać jak najmniej ekranu — mapa jest treścią */
+    header{padding:8px 10px;gap:8px}
+    .brand b{font-size:15px}
+    .brand span{display:none}
+    .tools{gap:6px}
+    .btn{padding:6px 9px;font-size:12px}
+    .searchbar{padding:8px 10px}
+    .hint{display:none}
+    /* palec potrzebuje większego celu niż kursor */
+    .mini{padding:7px 11px;font-size:12.5px}
+    .chip{padding:7px 11px 7px 9px}
     aside{
       position:absolute;inset:auto 0 0 0;width:100%;flex:none;height:56dvh;
       border-left:0;border-top:1px solid var(--line);border-radius:18px 18px 0 0;
@@ -278,6 +300,20 @@
   // oficjalne kolory linii U-Bahn (fallback, gdy brak w danych OSM)
   const UBAHN = {U1:"#7DAD4C",U2:"#DA421E",U3:"#16683D",U4:"#F0D722",U5:"#7E5330",U6:"#8C6DAB",U7:"#009BD5",U8:"#224F86",U9:"#F3791D"};
   const OVERPASS = ["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter"];
+
+  // Autorzy zdjęć z Wikimedia Commons. Licencje CC/GFDL wymagają podpisu przy każdej publikacji,
+  // więc podpis renderujemy w dymku. Klucz to ścieżka pliku, nie nazwa miejsca — dzięki temu działa
+  // też dla miejsc wczytanych ze starego localStorage, bez migracji danych.
+  const CREDITS = {
+    "img/brandenburger-tor.jpg": {by:"Thomas Wolf, www.foto-tw.de", lic:"CC BY-SA 3.0", src:"https://commons.wikimedia.org/wiki/File:Brandenburger_Tor_abends.jpg"},
+    "img/reichstag.jpg":         {by:"Mfield (Matthew Field), edit Waugsberg", lic:"GFDL 1.2", src:"https://commons.wikimedia.org/wiki/File:Berlin_reichstag_west_panorama_2.jpg"},
+    "img/holocaust-memorial.jpg":{by:"Alexander Blum", lic:"CC BY-SA 4.0", src:"https://commons.wikimedia.org/wiki/File:Memorial_to_the_Murdered_Jews_of_Europeabove.jpg"},
+    "img/museumsinsel.jpg":      {by:"Thomas Wolf, www.foto-tw.de", lic:"CC BY-SA 3.0", src:"https://commons.wikimedia.org/wiki/File:Berlin_Museumsinsel_Fernsehturm.jpg"},
+    "img/berliner-dom.jpg":      {by:"Ansgar Koreng", lic:"CC BY 3.0 (DE)", src:"https://commons.wikimedia.org/wiki/File:141227_Berliner_Dom.jpg"},
+    "img/fernsehturm.jpg":       {by:"Diego Delso", lic:"CC BY-SA 4.0", src:"https://commons.wikimedia.org/wiki/File:Fernsehturm,_Berl%C3%ADn,_Alemania,_2016-04-21,_DD_40-42_HDR.jpg"},
+    "img/east-side-gallery.jpg": {by:"Emeric.tourniaire", lic:"CC BY-SA 3.0", src:"https://commons.wikimedia.org/wiki/File:Baiser.JPG"},
+    "img/checkpoint-charlie.jpg":{by:"Roger Wollstadt", lic:"CC BY-SA 2.0", src:"https://commons.wikimedia.org/wiki/File:Berlin_-_Checkpoint_Charlie_1963.jpg"},
+  };
 
   // „MUST SEE” dla pierwszego razu w Berlinie — atrakcje powtarzające się w rankingach
   const MUST_SEE = [
@@ -377,8 +413,11 @@
     }).setView([52.5005,13.39],13);
     map.zoomControl.setPosition("topright");
     map.doubleClickZoom.disable();   // dwuklik rezerwujemy na zaznaczanie pinezek
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
-      maxZoom:19, attribution:'&copy; OpenStreetMap'
+    // bez {s}: OSM wycofał subdomeny a/b/c. Pełna atrybucja jest wymagana przez licencję ODbL.
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{
+      maxZoom:19,
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'+
+                  ' · zdjęcia: <a href="IMAGE_CREDITS.md" target="_blank" rel="noopener">Wikimedia Commons</a>'
     }).addTo(map);
     layer = L.layerGroup().addTo(map);
     map.on("click", onMapClick);
@@ -493,6 +532,7 @@
     return `<div class="pop"><b>${c.emoji} ${escapeHtml(p.name)}</b>`+
       (p.note?`<div style="font-size:12px;color:#5a606e;margin-top:3px">${escapeHtml(p.note)}</div>`:"")+
       (p.img?`<img class="popimg" src="${escapeHtml(p.img)}" alt="${escapeHtml(p.name)}" loading="lazy" onerror="this.remove()">`:"")+
+      creditHtml(p.img)+
       `<div class="pa">`+
       `<a class="mini nav" href="${gmapsNav(p)}" target="_blank" rel="noopener">🧭 Nawiguj</a>`+
       `<a class="mini" href="${gmapsShow(p)}" target="_blank" rel="noopener">📍 W Google Maps</a>`+
@@ -749,6 +789,14 @@
 
   // ---------- misc ----------
   function escapeHtml(s){ return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+
+  // podpis autora pod zdjęciem w dymku — pusty string dla miejsc bez zdjęcia lub bez wpisu w CREDITS
+  function creditHtml(img){
+    const c = img && CREDITS[img];
+    if(!c) return "";
+    return `<div class="cred">fot. ${escapeHtml(c.by)} · `+
+           `<a href="${escapeHtml(c.src)}" target="_blank" rel="noopener">${escapeHtml(c.lic)}</a></div>`;
+  }
   let toastT;
   function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2600); }
 

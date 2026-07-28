@@ -1,0 +1,20 @@
+{
+  "name": "Berlin — moja mapa",
+  "short_name": "Berlin",
+  "description": "Mapa wycieczki do Berlina: atrakcje, kebaby, hotele, U-Bahn i trasa spacerowa.",
+  "lang": "pl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f6f5f1",
+  "theme_color": "#13322e",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
