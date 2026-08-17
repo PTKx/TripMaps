@@ -727,14 +727,16 @@
     const h=Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)**2;
     return 2*R*Math.asin(Math.sqrt(h));
   }
-  // najlepsza kolejność zwiedzania (otwarta ścieżka): nearest-neighbour + 2-opt
-  function optimizeOrder(pts){
+  // najlepsza kolejność zwiedzania (otwarta ścieżka): nearest-neighbour + 2-opt;
+  // fixedStart=true trzyma pts[0] jako początek trasy (np. bieżąca pozycja użytkownika)
+  function optimizeOrder(pts, fixedStart){
     const n=pts.length;
     if(n<=2) return pts.slice();
     const D=pts.map(a=>pts.map(b=>haversine(a,b)));
     const len=ord=>{ let s=0; for(let i=0;i<ord.length-1;i++) s+=D[ord[i]][ord[i+1]]; return s; };
     let best=null, bestLen=Infinity;
-    for(let s=0;s<n;s++){                       // NN z każdego możliwego startu
+    const starts = fixedStart ? [0] : Array.from({length:n},(_,i)=>i);
+    for(const s of starts){                     // NN z każdego dozwolonego startu
       const vis=new Array(n).fill(false), ord=[s]; vis[s]=true;
       for(let k=1;k<n;k++){
         let last=ord[ord.length-1], nx=-1, nd=Infinity;
@@ -744,30 +746,53 @@
       const l=len(ord); if(l<bestLen){ bestLen=l; best=ord; }
     }
     let improved=true;                          // 2-opt na otwartej ścieżce
+    const i0 = fixedStart?1:0;                  // segment od 0 ruszałby punkt startowy
     while(improved){
       improved=false;
-      for(let i=0;i<n-1;i++) for(let k=i+1;k<n;k++){
+      for(let i=i0;i<n-1;i++) for(let k=i+1;k<n;k++){
         const ord=best.slice(0,i).concat(best.slice(i,k+1).reverse(), best.slice(k+1));
         const l=len(ord); if(l<bestLen-1e-9){ best=ord; bestLen=l; improved=true; }
       }
     }
     return best.map(i=>pts[i]);
   }
-  function openRoute(){
+  // bieżąca pozycja, jeśli użytkownik zgodzi się na geolokalizację i faktycznie jest
+  // w okolicy Berlina; w innym razie null (planowanie z domu = trasa tylko między miejscami)
+  function getStartPos(){
+    return new Promise(res=>{
+      if(!navigator.geolocation) return res(null);
+      navigator.geolocation.getCurrentPosition(
+        g=>{
+          const p={lat:g.coords.latitude,lng:g.coords.longitude};
+          const inBerlin = p.lat>52.2 && p.lat<52.8 && p.lng>12.8 && p.lng<14.0;
+          res(inBerlin?p:null);
+        },
+        ()=>res(null),
+        {enableHighAccuracy:true,timeout:6000,maximumAge:60000}
+      );
+    });
+  }
+  async function openRoute(){
     let sel = places.filter(p=>p.sel);
     if(sel.length<1){ toast("Najpierw zaznacz miejsca (2× klik pinezki lub ✓ na liście)."); return; }
     if(sel.length===1){ window.open(gmapsNav(sel[0]),"_blank","noopener"); return; }
     let trimmed=false;
     if(sel.length>10){ sel=sel.slice(0,10); trimmed=true; }   // Google: maks. ~10 stopów
-    const ordered = optimizeOrder(sel);
+    // okno musi powstać jeszcze w geście kliknięcia — po await popup-blocker by je uciął
+    const win = window.open("about:blank","_blank");
+    const me = await getStartPos();
+    const ordered = me ? optimizeOrder([me,...sel], true).slice(1) : optimizeOrder(sel);
     const pts = ordered.map(p=>`${p.lat},${p.lng}`);
-    const origin = pts[0], dest = pts[pts.length-1], mids = pts.slice(1,-1);
+    const origin = me ? `${me.lat},${me.lng}` : pts[0];
+    const dest = pts[pts.length-1];
+    const mids = me ? pts.slice(0,-1) : pts.slice(1,-1);
     const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}`+
       (mids.length?`&waypoints=${mids.join("|")}`:"")+`&travelmode=walking`;
-    window.open(url,"_blank","noopener");
+    if(win) win.location = url; else window.open(url,"_blank","noopener");
     toast(trimmed
       ? "Optymalna trasa gotowa (limit 10 stopów — resztę pominięto)."
-      : "Otwieram optymalną trasę spacerową w Google Maps.");
+      : me ? "Trasa od Twojej lokalizacji przez zaznaczone miejsca — otwieram Google Maps."
+           : "Otwieram optymalną trasę spacerową w Google Maps.");
   }
 
   // ---------- export / import ----------
