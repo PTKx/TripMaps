@@ -780,7 +780,12 @@
     if(sel.length>10){ sel=sel.slice(0,10); trimmed=true; }   // Google: maks. ~10 stopów
     // okno musi powstać jeszcze w geście kliknięcia — po await popup-blocker by je uciął
     const win = window.open("about:blank","_blank");
-    const me = await getStartPos();
+    if(win){ try{ win.document.write("<title>Optymalna trasa…</title><p style='font-family:sans-serif;padding:20px'>⏳ Ustalam pozycję startową… (jeśli przeglądarka pyta o lokalizację, odpowiedz w tamtej karcie)</p>"); }catch(e){} }
+    toast("Ustalam pozycję startową…");
+    // twardy limit: niekliknięty/odrzucony krzyżykiem prompt o lokalizację nie woła
+    // ŻADNEGO callbacka (timeout geolokalizacji liczy się dopiero od zgody) — bez
+    // wyścigu z własnym timerem okno wisiałoby na about:blank w nieskończoność
+    const me = await Promise.race([getStartPos(), new Promise(r=>setTimeout(()=>r(null),8000))]);
     const ordered = me ? optimizeOrder([me,...sel], true).slice(1) : optimizeOrder(sel);
     const pts = ordered.map(p=>`${p.lat},${p.lng}`);
     const origin = me ? `${me.lat},${me.lng}` : pts[0];
