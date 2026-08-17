@@ -865,7 +865,7 @@
     let drag=null, dragged=false;
     grip.addEventListener("pointerdown",e=>{
       drag={y0:e.clientY, from:cur()}; dragged=false;
-      grip.setPointerCapture(e.pointerId);
+      try{ grip.setPointerCapture(e.pointerId); }catch(err){}
     });
     grip.addEventListener("pointermove",e=>{
       if(!drag) return;
