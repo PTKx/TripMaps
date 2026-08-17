@@ -757,17 +757,18 @@
     return best.map(i=>pts[i]);
   }
   // bieżąca pozycja, jeśli użytkownik zgodzi się na geolokalizację i faktycznie jest
-  // w okolicy Berlina; w innym razie null (planowanie z domu = trasa tylko między miejscami)
+  // w okolicy Berlina; pos=null z powodem, gdy nie — powód idzie do toasta, żeby było
+  // widać, czemu trasa nie zaczyna się od użytkownika (np. testowanie z Polski)
   function getStartPos(){
     return new Promise(res=>{
-      if(!navigator.geolocation) return res(null);
+      if(!navigator.geolocation) return res({pos:null, why:"unsupported"});
       navigator.geolocation.getCurrentPosition(
         g=>{
           const p={lat:g.coords.latitude,lng:g.coords.longitude};
           const inBerlin = p.lat>52.2 && p.lat<52.8 && p.lng>12.8 && p.lng<14.0;
-          res(inBerlin?p:null);
+          res(inBerlin?{pos:p, why:"ok"}:{pos:null, why:"outside"});
         },
-        ()=>res(null),
+        ()=>res({pos:null, why:"denied"}),
         {enableHighAccuracy:true,timeout:6000,maximumAge:60000}
       );
     });
@@ -785,7 +786,8 @@
     // twardy limit: niekliknięty/odrzucony krzyżykiem prompt o lokalizację nie woła
     // ŻADNEGO callbacka (timeout geolokalizacji liczy się dopiero od zgody) — bez
     // wyścigu z własnym timerem okno wisiałoby na about:blank w nieskończoność
-    const me = await Promise.race([getStartPos(), new Promise(r=>setTimeout(()=>r(null),8000))]);
+    const geo = await Promise.race([getStartPos(), new Promise(r=>setTimeout(()=>r({pos:null, why:"timeout"}),8000))]);
+    const me = geo.pos;
     const ordered = me ? optimizeOrder([me,...sel], true).slice(1) : optimizeOrder(sel);
     const pts = ordered.map(p=>`${p.lat},${p.lng}`);
     const origin = me ? `${me.lat},${me.lng}` : pts[0];
@@ -794,10 +796,14 @@
     const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}`+
       (mids.length?`&waypoints=${mids.join("|")}`:"")+`&travelmode=walking`;
     if(win) win.location = url; else window.open(url,"_blank","noopener");
-    toast(trimmed
-      ? "Optymalna trasa gotowa (limit 10 stopów — resztę pominięto)."
-      : me ? "Trasa od Twojej lokalizacji przez zaznaczone miejsca — otwieram Google Maps."
-           : "Otwieram optymalną trasę spacerową w Google Maps.");
+    const noMe = {
+      outside:"Jesteś poza Berlinem, więc trasa liczona tylko między miejscami (na miejscu zacznie się od Ciebie).",
+      denied:"Brak zgody na lokalizację — trasa tylko między miejscami.",
+      timeout:"Nie udało się ustalić pozycji — trasa tylko między miejscami.",
+      unsupported:"Przeglądarka nie wspiera geolokalizacji — trasa tylko między miejscami.",
+    };
+    const msg = me ? "Trasa od Twojej bieżącej lokalizacji przez zaznaczone miejsca." : noMe[geo.why];
+    toast(trimmed ? msg+" Limit 10 stopów — resztę pominięto." : msg);
   }
 
   // ---------- export / import ----------
