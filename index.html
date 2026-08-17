@@ -221,14 +221,17 @@
     .chip .dot{width:9px;height:9px}
     .aside-head{padding:6px 10px 6px;gap:7px}
     aside{
-      position:absolute;inset:auto 0 0 0;width:100%;flex:none;height:56dvh;
+      position:absolute;inset:auto 0 0 0;width:100%;flex:none;height:90dvh;
       border-left:0;border-top:1px solid var(--line);border-radius:18px 18px 0 0;
       transform:translateY(calc(100% - 46px));transition:transform .28s ease;z-index:1500;box-shadow:0 -8px 30px rgba(0,0,0,.12);
     }
-    aside.open{transform:translateY(0)}
+    aside.half{transform:translateY(calc(100% - 56dvh))}
+    aside.full{transform:translateY(0)}
+    aside.dragging{transition:none}
     .panel-toggle{
       display:flex;align-items:center;justify-content:center;gap:8px;height:46px;width:100%;
       border:0;background:#fff;border-radius:18px 18px 0 0;font-weight:700;font-size:13px;color:var(--ink);
+      touch-action:none; /* uchwyt przeciągamy sami — bez tego przeglądarka scrolluje/odświeża stronę */
     }
     .panel-toggle .grip{position:absolute;top:7px;left:50%;transform:translateX(-50%);width:38px;height:4px;border-radius:2px;background:var(--line)}
     .stage{position:relative}
@@ -665,7 +668,7 @@
   function flyTo(p){
     map.flyTo([p.lat,p.lng],16,{duration:.6});
     const m=markers.get(p.id); if(m) setTimeout(()=>m.openPopup(),350);
-    if(window.matchMedia("(max-width:760px)").matches) $("#panel").classList.remove("open");
+    if(window.matchMedia("(max-width:760px)").matches) $("#panel").classList.remove("half","full");
   }
 
   // ---------- add / remove ----------
@@ -847,6 +850,53 @@
     if(vis.length) map.fitBounds(L.latLngBounds(vis.map(p=>[p.lat,p.lng])).pad(.18));
   }
 
+  // ---------- mobilny bottom sheet (Lista miejsc) ----------
+  // 3 stany: zwinięty pasek (46px) / połowa ekranu (56dvh) / prawie cały ekran (90dvh).
+  // Klik uchwytu przełącza pasek↔połowa; przeciągnięcie uchwytu idzie do najbliższego
+  // stanu w kierunku ruchu palca (w górę = więcej listy, w dół = chowanie).
+  function initSheet(){
+    const panel=$("#panel"), grip=$("#panelToggle");
+    const COLLAPSED=46;
+    const cur=()=>panel.classList.contains("full")?"full":panel.classList.contains("half")?"half":"collapsed";
+    const setState=s=>{ panel.classList.remove("half","full"); if(s!=="collapsed") panel.classList.add(s); };
+    // translateY [px] każdego stanu z bieżących wymiarów (odpowiedniki 90dvh/56dvh z CSS)
+    const yOf=()=>{ const H=panel.getBoundingClientRect().height;
+      return {collapsed:H-COLLAPSED, half:Math.max(0,H-innerHeight*.56), full:0}; };
+    let drag=null, dragged=false;
+    grip.addEventListener("pointerdown",e=>{
+      drag={y0:e.clientY, from:cur()}; dragged=false;
+      grip.setPointerCapture(e.pointerId);
+    });
+    grip.addEventListener("pointermove",e=>{
+      if(!drag) return;
+      const dy=e.clientY-drag.y0;
+      if(Math.abs(dy)>6) dragged=true;   // mniejsze drgnięcia zostają klikiem
+      if(!dragged) return;
+      const st=yOf(), y=Math.min(st.collapsed,Math.max(st.full,st[drag.from]+dy));
+      panel.classList.add("dragging");
+      panel.style.transform=`translateY(${y}px)`;
+    });
+    grip.addEventListener("pointerup",e=>{
+      if(!drag) return;
+      const {from,y0}=drag; drag=null;
+      panel.classList.remove("dragging");
+      if(!dragged){ panel.style.transform=""; return; }   // czysty klik obsłuży onclick
+      const dy=e.clientY-y0, st=yOf(), order=["collapsed","half","full"];
+      let target=from;
+      if(Math.abs(dy)>30){
+        const i=order.indexOf(from);
+        const cand = dy<0 ? order.slice(i+1) : order.slice(0,i);   // stany w kierunku ruchu
+        const y=Math.min(st.collapsed,Math.max(st.full,st[from]+dy));
+        cand.sort((a,b)=>Math.abs(st[a]-y)-Math.abs(st[b]-y));     // najbliższy pozycji palca
+        target=cand[0]||from;
+      }
+      panel.style.transform="";
+      setState(target);
+    });
+    grip.addEventListener("pointercancel",()=>{ if(drag){ drag=null; panel.classList.remove("dragging"); panel.style.transform=""; } });
+    grip.onclick=()=>{ if(dragged){ dragged=false; return; } setState(cur()==="collapsed"?"half":"collapsed"); };
+  }
+
   // ---------- wire up ----------
   function bind(){
     $("#metroToggle").onclick = toggleMetro;
@@ -863,7 +913,7 @@
     $("#importBtn").onclick = ()=>$("#importFile").click();
     $("#importFile").onchange = (e)=>{ if(e.target.files[0]) doImport(e.target.files[0]); e.target.value=""; };
     $("#resetBtn").onclick = ()=>{ if(confirm(`Przywrócić domyślne miejsca (${DEFAULTS.length}: kebaby + hotele + atrakcje MUST SEE)? Twoje dodatki znikną.`)){ places=DEFAULTS.map(p=>({id:uid(),...p,sel:false})); hidden.clear(); seeds.add("mustsee-v1"); seeds.add("mustsee-img-v1"); renderFilters(); renderMarkers(); renderList(); persist(); fitToPlaces(); toast("Przywrócono domyślne miejsca."); } };
-    $("#panelToggle").onclick = ()=>$("#panel").classList.toggle("open");
+    initSheet();
   }
 
   // ---------- boot ----------
