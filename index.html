@@ -206,10 +206,10 @@
   @media (max-width:760px){
     /* na telefonie chrom ma zjadać jak najmniej ekranu — mapa jest treścią */
     header{padding:8px 10px;gap:8px}
-    .brand b{font-size:15px}
-    .brand span{display:none}
-    .tools{gap:6px}
+    .brand{display:none}
+    .tools{gap:6px;flex:1;justify-content:space-between}
     .btn{padding:6px 9px;font-size:12px}
+    .btn .lbl{display:none}
     .searchbar{padding:8px 10px}
     .hint{display:none}
     /* palec potrzebuje większego celu niż kursor */
@@ -247,8 +247,8 @@
   <div class="tools">
     <button class="btn" id="metroToggle" title="Pokaż/ukryj linie metra (U-Bahn)">🚇 Metro</button>
     <button class="btn" id="addToggle" title="Kliknij na mapie, by dodać pinezkę">＋ Dodaj klikiem</button>
-    <button class="btn ghost" id="exportBtn">⭳ Eksport</button>
-    <button class="btn ghost" id="importBtn">⭱ Import</button>
+    <button class="btn ghost" id="exportBtn" title="Eksport do pliku JSON">⭳<span class="lbl"> Eksport</span></button>
+    <button class="btn ghost" id="importBtn" title="Import z pliku JSON">⭱<span class="lbl"> Import</span></button>
     <button class="btn ghost" id="resetBtn">↺ Reset</button>
     <input type="file" id="importFile" accept="application/json" hidden />
   </div>
